@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import sys
 import cowsay
+import shlex
 
 SIZE = 10
 player = [0, 0]
@@ -24,7 +25,11 @@ def addmon(x, y, name, hello):
         print("Replaced the old monster")
 
 def process_line(line):
-    parts = line.strip().split()
+    try:
+         parts = shlex.split(line)
+    except ValueError:
+        print("Invalid arguments")
+        return
     if not parts:
         return
     cmd = parts[0].lower()
