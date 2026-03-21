@@ -55,6 +55,7 @@ def process_line(line):
         print("Invalid command")
 
 def main():
+    print("<<< Welcome to Python-MUD 0.1 >>>")
     if sys.stdin.isatty():
         while True:
             try:
