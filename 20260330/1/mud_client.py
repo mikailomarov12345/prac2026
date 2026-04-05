@@ -63,6 +63,8 @@ class MudClient:
                 if line == "quit":
                     self.running = False
                     break
+                #if line.startswith("sayall"):
+                    #self.input_queue.put(line)
                 if line:
                     self.input_queue.put(line)
             except EOFError:

@@ -161,6 +161,10 @@ class MudServer:
                     else:
                         await self.send_to_user(username, "ERROR Unknown weapon")
                         
+                elif command == "sayall" and len(args) >= 1:
+                    message = ' '.join(args)
+                    message = message.strip('"\'')
+                    await self.broadcast(f"CHAT {username}: {message}")
                 else:
                     await self.send_to_user(username, f"ERROR Unknown command: {command}")
                     
