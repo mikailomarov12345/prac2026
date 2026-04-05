@@ -1,11 +1,11 @@
-"""Основная логика клиента MUD игры."""
+"""The main logic of the MUD game client."""
 
 import asyncio
 import threading
 import queue
 from io import StringIO
 
-from cowsay import cowsay, list_cows, read_dot_cow
+import cowsay
 
 from mood.common import JGSBAT_ASCII_ART
 
@@ -29,8 +29,33 @@ class MudClient:
         self.running = True
         self.input_queue = queue.Queue()
 
-        # Загружаем кастомного монстра
-        self.jgsbat = read_dot_cow(StringIO(JGSBAT_ASCII_ART))
+        # Загружаем кастомного монстра (для новой версии cowsay)
+        try:
+            # Пробуем новый API
+            self.jgsbat = cowsay.read_dot_cow(StringIO(JGSBAT_ASCII_ART))
+        except AttributeError:
+            # Старый API
+            self.jgsbat = cowsay.read_dot_cow(StringIO(JGSBAT_ASCII_ART))
+        except Exception:
+            # Если ничего не работает, создаём простой cow
+            self.jgsbat = None
+
+    def render_encounter(self, name, hello):
+        """Отрисовка встречи с монстром с помощью cowsay.
+
+        Args:
+            name: Имя монстра
+            hello: Приветствие
+        """
+        try:
+            if name == "jgsbat" and self.jgsbat:
+                print(cowsay.cowsay(hello, cowfile=self.jgsbat))
+            else:
+                print(cowsay.cowsay(hello, cow=name))
+        except Exception as e:
+            # Fallback - просто печатаем текст
+            print(f"Встреча с {name}: {hello}")
+            print(f"Ошибка отрисовки: {e}")
 
     async def connect(self):
         """Подключение к серверу и регистрация имени."""
@@ -55,11 +80,22 @@ class MudClient:
                 if not data:
                     break
                 msg = data.decode().strip()
-                print(f"\n{msg}")
+
+                # Обработка встречи с монстром
+                if msg.startswith("ENCOUNTER"):
+                    # Формат: ENCOUNTER имя приветствие
+                    parts = msg.split(maxsplit=2)
+                    if len(parts) == 3:
+                        _, name, hello = parts
+                        self.render_encounter(name, hello)
+                else:
+                    print(f"\n{msg}")
+
                 print("> ", end="", flush=True)
             except (asyncio.CancelledError, ConnectionError):
                 break
-            except Exception:
+            except Exception as e:
+                print(f"Ошибка приёма: {e}")
                 break
 
     def input_loop(self):

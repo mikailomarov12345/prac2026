@@ -209,6 +209,15 @@ class MudServer:
                     dx, dy = int(args[0]), int(args[1])
                     await self.handle_move(username, dx, dy)
 
+                elif command == "up":
+                    await self.handle_move(username, 0, -1)
+                elif command == "down":
+                    await self.handle_move(username, 0, 1)
+                elif command == "left":
+                    await self.handle_move(username, -1, 0)
+                elif command == "right":
+                    await self.handle_move(username, 1, 0)
+
                 elif command == "addmon" and len(args) == 5:
                     x, y = int(args[0]), int(args[1])
                     name, hello, hp = args[2], args[3], int(args[4])
