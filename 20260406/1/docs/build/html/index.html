@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+
+<html lang="ru" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>MOOD - Multi-user Online Observed Dungeon &#8212; документация MOOD 1.0.0</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=d1102ebc" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=12dfc556" />
+    <script src="_static/documentation_options.js?v=e35015f7"></script>
+    <script src="_static/doctools.js?v=9a2dae69"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/translations.js?v=9bfe3ffa"></script>
+    <link rel="index" title="Алфавитный указатель" href="genindex.html" />
+    <link rel="search" title="Поиск" href="search.html" />
+    <link rel="next" title="mood package" href="mood.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="mood-multi-user-online-observed-dungeon">
+<h1>MOOD - Multi-user Online Observed Dungeon<a class="headerlink" href="#mood-multi-user-online-observed-dungeon" title="Ссылка на этот заголовок">¶</a></h1>
+<p><strong>Задача:</strong> Реализовать многопользовательский MUD сервер с бродячими монстрами.</p>
+<section id="id1">
+<h2>Формулировка задачи<a class="headerlink" href="#id1" title="Ссылка на этот заголовок">¶</a></h2>
+<ol class="arabic simple">
+<li><p>Добавить на сервере поддержку бродячих монстров:
+- один раз в 30 секунд выбирается случайный монстр
+- он перемещается на одну клетку в случайном направлении
+- если клетка занята - повторяем попытку
+- при перемещении сервер сообщает всем игрокам
+- если монстр попал на клетку с игроком - происходит энкаунтер</p></li>
+<li><p>Создать техническую документацию с помощью Sphinx (autodoc)</p></li>
+</ol>
+</section>
+<section id="id2">
+<h2>Описание реализации<a class="headerlink" href="#id2" title="Ссылка на этот заголовок">¶</a></h2>
+<p>MUD (Multi-User Dungeon) - многопользовательская игра, где игроки могут:
+- Перемещаться по игровому полю размером 10x10
+- Встречать и атаковать монстров
+- Общаться через чат (команда <code class="docutils literal notranslate"><span class="pre">sayall</span></code>)
+- Наблюдать за бродячими монстрами</p>
+<section id="id3">
+<h3>Команды клиента<a class="headerlink" href="#id3" title="Ссылка на этот заголовок">¶</a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">up</span></code>, <code class="docutils literal notranslate"><span class="pre">down</span></code>, <code class="docutils literal notranslate"><span class="pre">left</span></code>, <code class="docutils literal notranslate"><span class="pre">right</span></code> - перемещение</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">addmon</span> <span class="pre">&lt;x&gt;</span> <span class="pre">&lt;y&gt;</span> <span class="pre">&lt;name&gt;</span> <span class="pre">&lt;hello&gt;</span> <span class="pre">&lt;hp&gt;</span></code> - добавление монстра</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">attack</span> <span class="pre">&lt;name&gt;</span> <span class="pre">[with</span> <span class="pre">&lt;weapon&gt;]</span></code> - атака монстра</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">sayall</span> <span class="pre">&lt;message&gt;</span></code> - отправка сообщения всем игрокам</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">quit</span></code> - выход из игры</p></li>
+</ul>
+</section>
+</section>
+<section id="id4">
+<h2>Техническая документация<a class="headerlink" href="#id4" title="Ссылка на этот заголовок">¶</a></h2>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="mood.html">mood package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="mood.html#subpackages">Subpackages</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mood.html#module-mood">Module contents</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</section>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="#">MOOD</a></h1>
+
+
+
+
+
+
+
+
+<h3>Навигация</h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="mood.html">mood package</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="#">Documentation overview</a><ul>
+      <li>Next: <a href="mood.html" title="следующая глава">mood package</a></li>
+  </ul></li>
+</ul>
+</div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Быстрый поиск</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Искать" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2026, Mikail.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 7.4.7</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 0.7.16</a>
+      
+      |
+      <a href="_sources/index.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

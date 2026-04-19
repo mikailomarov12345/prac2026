@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+
+<html lang="ru" data-content_root="../../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>mood.server.main &#8212; документация MOOD 1.0.0</title>
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=d1102ebc" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/alabaster.css?v=12dfc556" />
+    <script src="../../../_static/documentation_options.js?v=e35015f7"></script>
+    <script src="../../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/translations.js?v=9bfe3ffa"></script>
+    <link rel="index" title="Алфавитный указатель" href="../../../genindex.html" />
+    <link rel="search" title="Поиск" href="../../../search.html" />
+   
+  <link rel="stylesheet" href="../../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Исходный код mood.server.main</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;The main logic of the MUD game server.&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">asyncio</span>
+<span class="kn">from</span> <span class="nn">shlex</span> <span class="kn">import</span> <span class="n">split</span>
+
+<span class="kn">from</span> <span class="nn">mood.common</span> <span class="kn">import</span> <span class="n">SIZE</span><span class="p">,</span> <span class="n">WEAPONS</span>
+
+
+<div class="viewcode-block" id="GameState">
+<a class="viewcode-back" href="../../../mood.server.html#mood.server.main.GameState">[документация]</a>
+<span class="k">class</span> <span class="nc">GameState</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Состояние игры.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Инициализация игрового состояния.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">HEIGHT</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">WIDTH</span> <span class="o">=</span> <span class="n">SIZE</span>
+        <span class="c1"># Позиции игроков: {username: (x, y)}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">players</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="c1"># Монстры: [[(name, hello, hp) or None, ...], ...]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">monsters</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="p">[</span><span class="kc">None</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">HEIGHT</span><span class="p">)]</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">WIDTH</span><span class="p">)</span>
+        <span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">weapons</span> <span class="o">=</span> <span class="n">WEAPONS</span></div>
+
+
+
+<div class="viewcode-block" id="MudServer">
+<a class="viewcode-back" href="../../../mood.server.html#mood.server.main.MudServer">[документация]</a>
+<span class="k">class</span> <span class="nc">MudServer</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;MUD сервер для обработки клиентских подключений.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Инициализация сервера.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">game</span> <span class="o">=</span> <span class="n">GameState</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">writers</span> <span class="o">=</span> <span class="p">{}</span>  <span class="c1"># username -&gt; writer</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">positions</span> <span class="o">=</span> <span class="p">{}</span>  <span class="c1"># username -&gt; (x, y)</span>
+
+<div class="viewcode-block" id="MudServer.broadcast">
+<a class="viewcode-back" href="../../../mood.server.html#mood.server.main.MudServer.broadcast">[документация]</a>
+    <span class="k">async</span> <span class="k">def</span> <span class="nf">broadcast</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Отправить сообщение всем клиентам.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            message: Сообщение для отправки</span>
+<span class="sd">            exclude: Имя пользователя, которому НЕ отправлять</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">username</span><span class="p">,</span> <span class="n">writer</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">writers</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">username</span> <span class="o">!=</span> <span class="n">exclude</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">writer</span><span class="o">.</span><span class="n">write</span><span class="p">((</span><span class="n">message</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+                    <span class="k">await</span> <span class="n">writer</span><span class="o">.</span><span class="n">drain</span><span class="p">()</span>
+                <span class="k">except</span> <span class="p">(</span><span class="ne">ConnectionError</span><span class="p">,</span> <span class="ne">BrokenPipeError</span><span class="p">):</span>
+                    <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="MudServer.send_to_user">
+<a class="viewcode-back" href="../../../mood.server.html#mood.server.main.MudServer.send_to_user">[документация]</a>
+    <span class="k">async</span> <span class="k">def</span> <span class="nf">send_to_user</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">username</span><span class="p">,</span> <span class="n">message</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Отправить сообщение конкретному пользователю.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            username: Имя получателя</span>
+<span class="sd">            message: Сообщение для отправки</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">username</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">writers</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">writers</span><span class="p">[</span><span class="n">username</span><span class="p">]</span><span class="o">.</span><span class="n">write</span><span class="p">((</span><span class="n">message</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+                <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">writers</span><span class="p">[</span><span class="n">username</span><span class="p">]</span><span class="o">.</span><span class="n">drain</span><span class="p">()</span>
+            <span class="k">except</span> <span class="p">(</span><span class="ne">ConnectionError</span><span class="p">,</span> <span class="ne">BrokenPipeError</span><span class="p">):</span>
+                <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="MudServer.handle_move">
+<a class="viewcode-back" href="../../../mood.server.html#mood.server.main.MudServer.handle_move">[документация]</a>
+    <span class="k">async</span> <span class="k">def</span> <span class="nf">handle_move</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">username</span><span class="p">,</span> <span class="n">dx</span><span class="p">,</span> <span class="n">dy</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Обработка перемещения игрока.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            username: Имя игрока</span>
+<span class="sd">            dx: Смещение по X</span>
+<span class="sd">            dy: Смещение по Y</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">positions</span><span class="p">[</span><span class="n">username</span><span class="p">]</span>
+        <span class="n">new_x</span> <span class="o">=</span> <span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="n">dx</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">game</span><span class="o">.</span><span class="n">WIDTH</span><span class="p">)</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">game</span><span class="o">.</span><span class="n">WIDTH</span>
+        <span class="n">new_y</span> <span class="o">=</span> <span class="p">(</span><span class="n">y</span> <span class="o">+</span> <span class="n">dy</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">game</span><span class="o">.</span><span class="n">HEIGHT</span><span class="p">)</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">game</span><span class="o">.</span><span class="n">HEIGHT</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">positions</span><span class="p">[</span><span class="n">username</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">new_x</span><span class="p">,</span> <span class="n">new_y</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">game</span><span class="o">.</span><span class="n">players</span><span class="p">[</span><span class="n">username</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">new_x</span><span class="p">,</span> <span class="n">new_y</span><span class="p">)</span>
+
+        <span class="n">monster</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">game</span><span class="o">.</span><span class="n">monsters</span><span class="p">[</span><span class="n">new_x</span><span class="p">][</span><span class="n">new_y</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">monster</span><span class="p">:</span>
+            <span class="n">name</span><span class="p">,</span> <span class="n">hello</span><span class="p">,</span> <span class="n">hp</span> <span class="o">=</span> <span class="n">monster</span>
+            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">send_to_user</span><span class="p">(</span><span class="n">username</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;ENCOUNTER </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">hello</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">send_to_user</span><span class="p">(</span><span class="n">username</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;MOVED </span><span class="si">{</span><span class="n">new_x</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">new_y</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="MudServer.handle_addmon">
+<a class="viewcode-back" href="../../../mood.server.html#mood.server.main.MudServer.handle_addmon">[документация]</a>
+    <span class="k">async</span> <span class="k">def</span> <span class="nf">handle_addmon</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">username</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">hello</span><span class="p">,</span> <span class="n">hp</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Обработка добавления монстра.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            username: Имя игрока</span>
+<span class="sd">            x: Координата X</span>
+<span class="sd">            y: Координата Y</span>
+<span class="sd">            name: Имя монстра</span>
+<span class="sd">            hello: Приветствие</span>
+<span class="sd">            hp: Очки здоровья</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">old_monster</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">game</span><span class="o">.</span><span class="n">monsters</span><span class="p">[</span><span class="n">x</span><span class="p">][</span><span class="n">y</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="n">old_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">game</span><span class="o">.</span><span class="n">monsters</span><span class="p">[</span><span class="n">x</span><span class="p">][</span><span class="n">y</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">old_monster</span> <span class="k">else</span> <span class="kc">None</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">game</span><span class="o">.</span><span class="n">monsters</span><span class="p">[</span><span class="n">x</span><span class="p">][</span><span class="n">y</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">hello</span><span class="p">,</span> <span class="n">hp</span><span class="p">)</span>
+
+        <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">send_to_user</span><span class="p">(</span><span class="n">username</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;ADDMON </span><span class="si">{</span><span class="n">x</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">y</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">hello</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">hp</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">old_monster</span><span class="p">:</span>
+            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">broadcast</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;BROADCAST </span><span class="si">{</span><span class="n">username</span><span class="si">}</span><span class="s2"> replaced </span><span class="si">{</span><span class="n">old_name</span><span class="si">}</span><span class="s2"> with </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> at (</span><span class="si">{</span><span class="n">x</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="n">y</span><span class="si">}</span><span class="s2">) (HP:</span><span class="si">{</span><span class="n">hp</span><span class="si">}</span><span class="s2">)&quot;</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">broadcast</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;BROADCAST </span><span class="si">{</span><span class="n">username</span><span class="si">}</span><span class="s2"> placed </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> at (</span><span class="si">{</span><span class="n">x</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="n">y</span><span class="si">}</span><span class="s2">) (HP:</span><span class="si">{</span><span class="n">hp</span><span class="si">}</span><span class="s2">)&quot;</span>
+            <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="MudServer.handle_attack">
+<a class="viewcode-back" href="../../../mood.server.html#mood.server.main.MudServer.handle_attack">[документация]</a>
+    <span class="k">async</span> <span class="k">def</span> <span class="nf">handle_attack</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">username</span><span class="p">,</span> <span class="n">monster_name</span><span class="p">,</span> <span class="n">weapon</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Обработка атаки на монстра.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            username: Имя игрока</span>
+<span class="sd">            monster_name: Имя монстра</span>
+<span class="sd">            weapon: Оружие</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">positions</span><span class="p">[</span><span class="n">username</span><span class="p">]</span>
+        <span class="n">monster</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">game</span><span class="o">.</span><span class="n">monsters</span><span class="p">[</span><span class="n">x</span><span class="p">][</span><span class="n">y</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">monster</span> <span class="ow">or</span> <span class="n">monster</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="n">monster_name</span><span class="p">:</span>
+            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">send_to_user</span><span class="p">(</span><span class="n">username</span><span class="p">,</span> <span class="s2">&quot;ATTACK MISS&quot;</span><span class="p">)</span>
+            <span class="k">return</span>
+
+        <span class="n">name</span><span class="p">,</span> <span class="n">hello</span><span class="p">,</span> <span class="n">hp</span> <span class="o">=</span> <span class="n">monster</span>
+        <span class="n">damage</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">hp</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">game</span><span class="o">.</span><span class="n">weapons</span><span class="p">[</span><span class="n">weapon</span><span class="p">])</span>
+        <span class="n">new_hp</span> <span class="o">=</span> <span class="n">hp</span> <span class="o">-</span> <span class="n">damage</span>
+
+        <span class="k">if</span> <span class="n">new_hp</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">game</span><span class="o">.</span><span class="n">monsters</span><span class="p">[</span><span class="n">x</span><span class="p">][</span><span class="n">y</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">send_to_user</span><span class="p">(</span><span class="n">username</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;ATTACK KILL </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">damage</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">broadcast</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;BROADCAST </span><span class="si">{</span><span class="n">username</span><span class="si">}</span><span class="s2"> killed </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> with </span><span class="si">{</span><span class="n">weapon</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">game</span><span class="o">.</span><span class="n">monsters</span><span class="p">[</span><span class="n">x</span><span class="p">][</span><span class="n">y</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">hello</span><span class="p">,</span> <span class="n">new_hp</span><span class="p">)</span>
+            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">send_to_user</span><span class="p">(</span>
+                <span class="n">username</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;ATTACK HIT </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">damage</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">new_hp</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">broadcast</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;BROADCAST </span><span class="si">{</span><span class="n">username</span><span class="si">}</span><span class="s2"> attacked </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> with </span><span class="si">{</span><span class="n">weapon</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">new_hp</span><span class="si">}</span><span class="s2"> HP left&quot;</span>
+            <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="MudServer.handle_sayall">
+<a class="viewcode-back" href="../../../mood.server.html#mood.server.main.MudServer.handle_sayall">[документация]</a>
+    <span class="k">async</span> <span class="k">def</span> <span class="nf">handle_sayall</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">username</span><span class="p">,</span> <span class="n">message</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Обработка команды sayall - отправка сообщения всем.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            username: Имя отправителя</span>
+<span class="sd">            message: Текст сообщения</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">broadcast</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;CHAT </span><span class="si">{</span><span class="n">username</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">message</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="MudServer.handle_client">
+<a class="viewcode-back" href="../../../mood.server.html#mood.server.main.MudServer.handle_client">[документация]</a>
+    <span class="k">async</span> <span class="k">def</span> <span class="nf">handle_client</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reader</span><span class="p">,</span> <span class="n">writer</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Обработка подключения клиента.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            reader: StreamReader для чтения данных</span>
+<span class="sd">            writer: StreamWriter для отправки данных</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">wait_for</span><span class="p">(</span><span class="n">reader</span><span class="o">.</span><span class="n">readline</span><span class="p">(),</span> <span class="n">timeout</span><span class="o">=</span><span class="mf">10.0</span><span class="p">)</span>
+            <span class="n">username</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="k">except</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">TimeoutError</span><span class="p">:</span>
+            <span class="n">writer</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+            <span class="k">return</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">username</span> <span class="ow">or</span> <span class="s1">&#39; &#39;</span> <span class="ow">in</span> <span class="n">username</span><span class="p">:</span>
+            <span class="n">writer</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;ERROR Invalid username</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+            <span class="k">await</span> <span class="n">writer</span><span class="o">.</span><span class="n">drain</span><span class="p">()</span>
+            <span class="n">writer</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+            <span class="k">return</span>
+
+        <span class="k">if</span> <span class="n">username</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">writers</span><span class="p">:</span>
+            <span class="n">writer</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;ERROR Name already taken</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+            <span class="k">await</span> <span class="n">writer</span><span class="o">.</span><span class="n">drain</span><span class="p">()</span>
+            <span class="n">writer</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+            <span class="k">return</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">writers</span><span class="p">[</span><span class="n">username</span><span class="p">]</span> <span class="o">=</span> <span class="n">writer</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">positions</span><span class="p">[</span><span class="n">username</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">game</span><span class="o">.</span><span class="n">players</span><span class="p">[</span><span class="n">username</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+        <span class="n">writer</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;WELCOME</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+        <span class="k">await</span> <span class="n">writer</span><span class="o">.</span><span class="n">drain</span><span class="p">()</span>
+
+        <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">send_to_user</span><span class="p">(</span><span class="n">username</span><span class="p">,</span> <span class="s2">&quot;POSITION 0 0&quot;</span><span class="p">)</span>
+
+        <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">broadcast</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;BROADCAST </span><span class="si">{</span><span class="n">username</span><span class="si">}</span><span class="s2"> entered the MUD&quot;</span><span class="p">)</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="k">await</span> <span class="n">reader</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">data</span><span class="p">:</span>
+                    <span class="k">break</span>
+
+                <span class="n">line</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">line</span><span class="p">:</span>
+                    <span class="k">continue</span>
+
+                <span class="n">parts</span> <span class="o">=</span> <span class="n">split</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">parts</span><span class="p">:</span>
+                    <span class="k">continue</span>
+
+                <span class="n">command</span> <span class="o">=</span> <span class="n">parts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">args</span> <span class="o">=</span> <span class="n">parts</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+
+                <span class="k">if</span> <span class="n">command</span> <span class="o">==</span> <span class="s2">&quot;move&quot;</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                    <span class="n">dx</span><span class="p">,</span> <span class="n">dy</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="nb">int</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+                    <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">handle_move</span><span class="p">(</span><span class="n">username</span><span class="p">,</span> <span class="n">dx</span><span class="p">,</span> <span class="n">dy</span><span class="p">)</span>
+
+                <span class="k">elif</span> <span class="n">command</span> <span class="o">==</span> <span class="s2">&quot;up&quot;</span><span class="p">:</span>
+                    <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">handle_move</span><span class="p">(</span><span class="n">username</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+                <span class="k">elif</span> <span class="n">command</span> <span class="o">==</span> <span class="s2">&quot;down&quot;</span><span class="p">:</span>
+                    <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">handle_move</span><span class="p">(</span><span class="n">username</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+                <span class="k">elif</span> <span class="n">command</span> <span class="o">==</span> <span class="s2">&quot;left&quot;</span><span class="p">:</span>
+                    <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">handle_move</span><span class="p">(</span><span class="n">username</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+                <span class="k">elif</span> <span class="n">command</span> <span class="o">==</span> <span class="s2">&quot;right&quot;</span><span class="p">:</span>
+                    <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">handle_move</span><span class="p">(</span><span class="n">username</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+                <span class="k">elif</span> <span class="n">command</span> <span class="o">==</span> <span class="s2">&quot;addmon&quot;</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">5</span><span class="p">:</span>
+                    <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="nb">int</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+                    <span class="n">name</span><span class="p">,</span> <span class="n">hello</span><span class="p">,</span> <span class="n">hp</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">args</span><span class="p">[</span><span class="mi">3</span><span class="p">],</span> <span class="nb">int</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">4</span><span class="p">])</span>
+                    <span class="k">if</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">x</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">game</span><span class="o">.</span><span class="n">WIDTH</span> <span class="ow">and</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">y</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">game</span><span class="o">.</span><span class="n">HEIGHT</span><span class="p">:</span>
+                        <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">handle_addmon</span><span class="p">(</span><span class="n">username</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">hello</span><span class="p">,</span> <span class="n">hp</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">send_to_user</span><span class="p">(</span><span class="n">username</span><span class="p">,</span> <span class="s2">&quot;ERROR Invalid coordinates&quot;</span><span class="p">)</span>
+
+                <span class="k">elif</span> <span class="n">command</span> <span class="o">==</span> <span class="s2">&quot;attack&quot;</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                    <span class="n">monster_name</span><span class="p">,</span> <span class="n">weapon</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="n">weapon</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">game</span><span class="o">.</span><span class="n">weapons</span><span class="p">:</span>
+                        <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">handle_attack</span><span class="p">(</span><span class="n">username</span><span class="p">,</span> <span class="n">monster_name</span><span class="p">,</span> <span class="n">weapon</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">send_to_user</span><span class="p">(</span><span class="n">username</span><span class="p">,</span> <span class="s2">&quot;ERROR Unknown weapon&quot;</span><span class="p">)</span>
+
+                <span class="k">elif</span> <span class="n">command</span> <span class="o">==</span> <span class="s2">&quot;sayall&quot;</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">message</span> <span class="o">=</span> <span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">args</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">(</span><span class="s1">&#39;&quot;</span><span class="se">\&#39;</span><span class="s1">&#39;</span><span class="p">)</span>
+                    <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">handle_sayall</span><span class="p">(</span><span class="n">username</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span>
+
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">send_to_user</span><span class="p">(</span><span class="n">username</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;ERROR Unknown command: </span><span class="si">{</span><span class="n">command</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error handling </span><span class="si">{</span><span class="n">username</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">username</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">writers</span><span class="p">:</span>
+                <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">writers</span><span class="p">[</span><span class="n">username</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">username</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">positions</span><span class="p">:</span>
+                <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">positions</span><span class="p">[</span><span class="n">username</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">username</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">game</span><span class="o">.</span><span class="n">players</span><span class="p">:</span>
+                <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">game</span><span class="o">.</span><span class="n">players</span><span class="p">[</span><span class="n">username</span><span class="p">]</span>
+
+            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">broadcast</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;BROADCAST </span><span class="si">{</span><span class="n">username</span><span class="si">}</span><span class="s2"> left the MUD&quot;</span><span class="p">)</span>
+            <span class="n">writer</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+            <span class="k">await</span> <span class="n">writer</span><span class="o">.</span><span class="n">wait_closed</span><span class="p">()</span></div>
+</div>
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../../index.html">MOOD</a></h1>
+
+
+
+
+
+
+
+
+<h3>Навигация</h3>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Код модуля</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Быстрый поиск</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Искать" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2026, Mikail.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 7.4.7</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 0.7.16</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

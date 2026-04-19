@@ -1,6 +1,7 @@
 """The main logic of the MUD game server."""
 
 import asyncio
+import random
 from shlex import split
 
 from mood.common import SIZE, WEAPONS
@@ -29,6 +30,7 @@ class MudServer:
         self.game = GameState()
         self.writers = {}  # username -> writer
         self.positions = {}  # username -> (x, y)
+        self.wandering_task = None
 
     async def broadcast(self, message, exclude=None):
         """Отправить сообщение всем клиентам.
@@ -188,6 +190,9 @@ class MudServer:
 
         await self.broadcast(f"BROADCAST {username} entered the MUD")
 
+        if self.wandering_task is None or self.wandering_task.done():
+            self.wandering_task = asyncio.create_task(self.wander_monsters())
+
         try:
             while True:
                 data = await reader.readline()
@@ -210,9 +215,9 @@ class MudServer:
                     await self.handle_move(username, dx, dy)
 
                 elif command == "up":
-                    await self.handle_move(username, 0, -1)
-                elif command == "down":
                     await self.handle_move(username, 0, 1)
+                elif command == "down":
+                    await self.handle_move(username, 0, -1)
                 elif command == "left":
                     await self.handle_move(username, -1, 0)
                 elif command == "right":
@@ -226,12 +231,22 @@ class MudServer:
                     else:
                         await self.send_to_user(username, "ERROR Invalid coordinates")
 
-                elif command == "attack" and len(args) == 2:
-                    monster_name, weapon = args[0], args[1]
-                    if weapon in self.game.weapons:
-                        await self.handle_attack(username, monster_name, weapon)
+                elif command == "attack":
+                    if len(args) == 1:
+                        monster_name = args[0]
+                        weapon = "sword"
+                        if weapon in self.game.weapons:
+                            await self.handle_attack(username, monster_name, weapon)
+                        else:
+                            await self.send_to_user(username, "ERROR Unknown weapon")
+                    elif len(args) == 3 and args[1] == "with":
+                        monster_name, _, weapon = args
+                        if weapon in self.game.weapons:
+                            await self.handle_attack(username, monster_name, weapon)
+                        else:
+                            await self.send_to_user(username, "ERROR Unknown weapon")
                     else:
-                        await self.send_to_user(username, "ERROR Unknown weapon")
+                        await self.send_to_user(username, "ERROR Invalid attack command")
 
                 elif command == "sayall" and len(args) >= 1:
                     message = ' '.join(args).strip('"\'')
@@ -254,3 +269,41 @@ class MudServer:
             await self.broadcast(f"BROADCAST {username} left the MUD")
             writer.close()
             await writer.wait_closed()
+
+    async def wander_monsters(self):
+        """Периодическое перемещение случайных монстров (каждые 30 секунд)."""
+        await asyncio.sleep(30)
+        while True:
+            await asyncio.sleep(30)
+
+            monsters_list = []
+            for x in range(self.game.WIDTH):
+                for y in range(self.game.HEIGHT):
+                    monster = self.game.monsters[x][y]
+                    if monster:
+                        monsters_list.append((x, y, monster[0], monster[1], monster[2]))
+
+            if not monsters_list:
+                continue
+
+            for _ in range(10):
+                idx = random.randrange(len(monsters_list))
+                x, y, name, hello, hp = monsters_list[idx]
+
+                dx, dy = random.choice([(0, -1), (0, 1), (-1, 0), (1, 0)])
+                dir_map = {(0, -1): "up", (0, 1): "down", (-1, 0): "left", (1, 0): "right"}
+                direction = dir_map[(dx, dy)]
+
+                new_x = (x + dx + self.game.WIDTH) % self.game.WIDTH
+                new_y = (y + dy + self.game.HEIGHT) % self.game.HEIGHT
+
+                if self.game.monsters[new_x][new_y] is None:
+                    self.game.monsters[new_x][new_y] = self.game.monsters[x][y]
+                    self.game.monsters[x][y] = None
+
+                    await self.broadcast(f"BROADCAST {name} moved one cell {direction}")
+
+                    for player, (px, py) in self.positions.items():
+                        if px == new_x and py == new_y:
+                            await self.send_to_user(player, f"ENCOUNTER {name} {hello}")
+                    break
