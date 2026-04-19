@@ -31,6 +31,7 @@ class MudServer:
         self.writers = {}  # username -> writer
         self.positions = {}  # username -> (x, y)
         self.wandering_task = None
+        self.monsters_move_enabled = True
 
     async def broadcast(self, message, exclude=None):
         """Отправить сообщение всем клиентам.
@@ -222,7 +223,8 @@ class MudServer:
                     await self.handle_move(username, -1, 0)
                 elif command == "right":
                     await self.handle_move(username, 1, 0)
-
+                elif command == "movemonsters" and len(args) == 1:
+                    await self.handle_movemonsters(username, args[0])
                 elif command == "addmon" and len(args) == 5:
                     x, y = int(args[0]), int(args[1])
                     name, hello, hp = args[2], args[3], int(args[4])
@@ -276,6 +278,9 @@ class MudServer:
         while True:
             await asyncio.sleep(30)
 
+            if not self.monsters_move_enabled:
+                continue
+
             monsters_list = []
             for x in range(self.game.WIDTH):
                 for y in range(self.game.HEIGHT):
@@ -307,3 +312,22 @@ class MudServer:
                         if px == new_x and py == new_y:
                             await self.send_to_user(player, f"ENCOUNTER {name} {hello}")
                     break
+
+    async def handle_movemonsters(self, username, state):
+        """Обработка команды включения/выключения бродячих монстров.
+
+        Args:
+            username: Имя игрока
+            state: Состояние ("on" или "off")
+        """
+        if state == "on":
+            self.monsters_move_enabled = True
+            await self.send_to_user(username, "Moving monsters: on")
+            # Если задача не запущена - запускаем
+            if self.wandering_task is None or self.wandering_task.done():
+                self.wandering_task = asyncio.create_task(self.wander_monsters())
+        elif state == "off":
+            self.monsters_move_enabled = False
+            await self.send_to_user(username, "Moving monsters: off")
+        else:
+            await self.send_to_user(username, "ERROR Invalid state. Use 'on' or 'off'")
