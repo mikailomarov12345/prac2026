@@ -2,6 +2,8 @@
 
 import asyncio
 import random
+import gettext
+from pathlib import Path
 from shlex import split
 
 from mood.common import SIZE, WEAPONS
@@ -28,48 +30,63 @@ class MudServer:
     def __init__(self):
         """Инициализация сервера."""
         self.game = GameState()
-        self.writers = {}  # username -> writer
-        self.positions = {}  # username -> (x, y)
+        self.writers = {}
+        self.positions = {}
         self.wandering_task = None
         self.monsters_move_enabled = True
+        self.client_locales = {}  # username -> locale
+        # Настройка переводов
+        locale_dir = Path(__file__).parent / "locales"
+        self.translations = {
+            'ru_RU': gettext.translation('messages', localedir=locale_dir, languages=['ru_RU'], fallback=True)
+        }
 
-    async def broadcast(self, message, exclude=None):
-        """Отправить сообщение всем клиентам.
+    def get_translated_message(self, username, message_id, **kwargs):
+        """Получить переведённое сообщение для пользователя."""
+        locale = self.client_locales.get(username, 'en')
+        if locale in self.translations:
+            trans = self.translations[locale]
+            msg = trans.gettext(message_id)
+            # Подстановка параметров с учётом множественного числа
+            if 'hp' in kwargs:
+                hp = kwargs['hp']
+                hp_msg = trans.ngettext("point", "points", hp)
+                kwargs['hp'] = f"{hp} {hp_msg}"
+            return msg.format(**kwargs) if kwargs else msg
+        return message_id.format(**kwargs) if kwargs else message_id
 
-        Args:
-            message: Сообщение для отправки
-            exclude: Имя пользователя, которому НЕ отправлять
-        """
+    async def handle_locale(self, username, locale_name):
+        """Обработка команды установки локали."""
+        if locale_name in self.translations or locale_name == 'en':
+            self.client_locales[username] = locale_name
+            msg = self.get_translated_message(username, "Set up locale: {}", locale=locale_name)
+            await self.send_to_user(username, msg)
+        else:
+            await self.send_to_user(username, f"ERROR Unknown locale: {locale_name}")
+
+    async def broadcast(self, message_id, exclude=None, **kwargs):
+        """Отправить локализованное сообщение всем клиентам."""
         for username, writer in self.writers.items():
             if username != exclude:
                 try:
-                    writer.write((message + "\n").encode())
+                    msg = self.get_translated_message(username, message_id, **kwargs)
+                    writer.write((msg + "\n").encode())
                     await writer.drain()
                 except (ConnectionError, BrokenPipeError):
                     pass
 
-    async def send_to_user(self, username, message):
-        """Отправить сообщение конкретному пользователю.
-
-        Args:
-            username: Имя получателя
-            message: Сообщение для отправки
-        """
+    async def send_to_user(self, username, message_id, **kwargs):
+        """Отправить локализованное сообщение конкретному пользователю."""
         if username in self.writers:
             try:
-                self.writers[username].write((message + "\n").encode())
+                msg = self.get_translated_message(username, message_id, **kwargs)
+                self.writers[username].write((msg + "\n").encode())
                 await self.writers[username].drain()
             except (ConnectionError, BrokenPipeError):
                 pass
 
     async def handle_move(self, username, dx, dy):
-        """Обработка перемещения игрока.
-
-        Args:
-            username: Имя игрока
-            dx: Смещение по X
-            dy: Смещение по Y
-        """
+        """Обработка перемещения игрока."""
         x, y = self.positions[username]
         new_x = (x + dx + self.game.WIDTH) % self.game.WIDTH
         new_y = (y + dy + self.game.HEIGHT) % self.game.HEIGHT
@@ -80,45 +97,32 @@ class MudServer:
         monster = self.game.monsters[new_x][new_y]
         if monster:
             name, hello, hp = monster
-            await self.send_to_user(username, f"ENCOUNTER {name} {hello}")
+            await self.send_to_user(username, "ENCOUNTER {} {}", name, hello)
         else:
-            await self.send_to_user(username, f"MOVED {new_x} {new_y}")
+            await self.send_to_user(username, "MOVED {} {}", new_x, new_y)
 
     async def handle_addmon(self, username, x, y, name, hello, hp):
-        """Обработка добавления монстра.
-
-        Args:
-            username: Имя игрока
-            x: Координата X
-            y: Координата Y
-            name: Имя монстра
-            hello: Приветствие
-            hp: Очки здоровья
-        """
+        """Обработка добавления монстра."""
         old_monster = self.game.monsters[x][y] is not None
         old_name = self.game.monsters[x][y][0] if old_monster else None
 
         self.game.monsters[x][y] = (name, hello, hp)
 
-        await self.send_to_user(username, f"ADDMON {x} {y} {name} {hello} {hp}")
+        await self.send_to_user(username, "ADDMON {} {} {} {} {}", x, y, name, hello, hp)
 
         if old_monster:
             await self.broadcast(
-                f"BROADCAST {username} replaced {old_name} with {name} at ({x},{y}) (HP:{hp})"
+                "replaced {} with {} at ({},{}) (HP:{})",
+                username=username, old_name=old_name, name=name, x=x, y=y, hp=hp
             )
         else:
             await self.broadcast(
-                f"BROADCAST {username} placed {name} at ({x},{y}) (HP:{hp})"
+                "placed {} at ({},{}) (HP:{})",
+                username=username, name=name, x=x, y=y, hp=hp
             )
 
     async def handle_attack(self, username, monster_name, weapon):
-        """Обработка атаки на монстра.
-
-        Args:
-            username: Имя игрока
-            monster_name: Имя монстра
-            weapon: Оружие
-        """
+        """Обработка атаки на монстра."""
         x, y = self.positions[username]
         monster = self.game.monsters[x][y]
 
@@ -132,35 +136,22 @@ class MudServer:
 
         if new_hp == 0:
             self.game.monsters[x][y] = None
-            await self.send_to_user(username, f"ATTACK KILL {name} {damage}")
-            await self.broadcast(
-                f"BROADCAST {username} killed {name} with {weapon}"
-            )
+            await self.send_to_user(username, "ATTACK KILL {} {}", name, damage)
+            await self.broadcast("killed {} with {}", username=username, name=name, weapon=weapon)
         else:
             self.game.monsters[x][y] = (name, hello, new_hp)
-            await self.send_to_user(
-                username, f"ATTACK HIT {name} {damage} {new_hp}"
-            )
+            await self.send_to_user(username, "ATTACK HIT {} {} {}", name, damage, new_hp)
             await self.broadcast(
-                f"BROADCAST {username} attacked {name} with {weapon}, {new_hp} HP left"
+                "attacked {} with {}, {} HP left",
+                username=username, name=name, weapon=weapon, hp=new_hp
             )
 
     async def handle_sayall(self, username, message):
-        """Обработка команды sayall - отправка сообщения всем.
-
-        Args:
-            username: Имя отправителя
-            message: Текст сообщения
-        """
-        await self.broadcast(f"CHAT {username}: {message}")
+        """Обработка команды sayall - отправка сообщения всем."""
+        await self.broadcast("CHAT {}: {}", username=username, message=message)
 
     async def handle_client(self, reader, writer):
-        """Обработка подключения клиента.
-
-        Args:
-            reader: StreamReader для чтения данных
-            writer: StreamWriter для отправки данных
-        """
+        """Обработка подключения клиента."""
         try:
             data = await asyncio.wait_for(reader.readline(), timeout=10.0)
             username = data.decode().strip()
@@ -189,7 +180,7 @@ class MudServer:
 
         await self.send_to_user(username, "POSITION 0 0")
 
-        await self.broadcast(f"BROADCAST {username} entered the MUD")
+        await self.broadcast("entered the MUD", username=username)
 
         if self.wandering_task is None or self.wandering_task.done():
             self.wandering_task = asyncio.create_task(self.wander_monsters())
@@ -223,8 +214,13 @@ class MudServer:
                     await self.handle_move(username, -1, 0)
                 elif command == "right":
                     await self.handle_move(username, 1, 0)
+
                 elif command == "movemonsters" and len(args) == 1:
                     await self.handle_movemonsters(username, args[0])
+
+                elif command == "locale" and len(args) == 1:
+                    await self.handle_locale(username, args[0])
+
                 elif command == "addmon" and len(args) == 5:
                     x, y = int(args[0]), int(args[1])
                     name, hello, hp = args[2], args[3], int(args[4])
@@ -255,7 +251,7 @@ class MudServer:
                     await self.handle_sayall(username, message)
 
                 else:
-                    await self.send_to_user(username, f"ERROR Unknown command: {command}")
+                    await self.send_to_user(username, "ERROR Unknown command: {}", command)
 
         except Exception as e:
             print(f"Error handling {username}: {e}")
@@ -268,7 +264,7 @@ class MudServer:
             if username in self.game.players:
                 del self.game.players[username]
 
-            await self.broadcast(f"BROADCAST {username} left the MUD")
+            await self.broadcast("left the MUD", username=username)
             writer.close()
             await writer.wait_closed()
 
@@ -306,24 +302,18 @@ class MudServer:
                     self.game.monsters[new_x][new_y] = self.game.monsters[x][y]
                     self.game.monsters[x][y] = None
 
-                    await self.broadcast(f"BROADCAST {name} moved one cell {direction}")
+                    await self.broadcast("moved one cell {}", name=name, direction=direction)
 
                     for player, (px, py) in self.positions.items():
                         if px == new_x and py == new_y:
-                            await self.send_to_user(player, f"ENCOUNTER {name} {hello}")
+                            await self.send_to_user(player, "ENCOUNTER {} {}", name, hello)
                     break
 
     async def handle_movemonsters(self, username, state):
-        """Обработка команды включения/выключения бродячих монстров.
-
-        Args:
-            username: Имя игрока
-            state: Состояние ("on" или "off")
-        """
+        """Обработка команды включения/выключения бродячих монстров."""
         if state == "on":
             self.monsters_move_enabled = True
             await self.send_to_user(username, "Moving monsters: on")
-            # Если задача не запущена - запускаем
             if self.wandering_task is None or self.wandering_task.done():
                 self.wandering_task = asyncio.create_task(self.wander_monsters())
         elif state == "off":

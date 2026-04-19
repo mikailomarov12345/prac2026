@@ -119,7 +119,7 @@ class MudClient:
                 self.running = False
             self.running = False
         else:
-            print("Команды: up, down, left, right, addmon, attack, sayall, movemonsters, quit")
+            print("Команды: up, down, left, right, addmon, attack, sayall, movemonsters, locale, quit")
             while self.running:
                 try:
                     line = input("> ")
