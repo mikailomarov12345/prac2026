@@ -1,0 +1,4 @@
+addmon 0 0 dragon "Greetings!" 50
+attack dragon with sword
+sayall "I killed the dragon!"
+quit

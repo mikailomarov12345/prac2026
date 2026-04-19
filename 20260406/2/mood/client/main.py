@@ -1,5 +1,6 @@
 """The main logic of the MUD game client."""
 
+import time
 import asyncio
 import threading
 import queue
@@ -24,6 +25,7 @@ class MudClient:
         self.host = host
         self.port = port
         self.username = username
+        self.script_file = script_file
         self.reader = None
         self.writer = None
         self.running = True
@@ -100,17 +102,34 @@ class MudClient:
 
     def input_loop(self):
         """Цикл чтения ввода пользователя в отдельном потоке."""
-        print("Команды: up, down, left, right, addmon, attack, sayall, quit")
-        while self.running:
+        if self.script_file:
             try:
-                line = input("> ")
-                if line == "quit":
-                    self.running = False
+                with open(self.script_file, 'r') as f:
+                    commands = [line.strip() for line in f if line.strip()]
+                for cmd in commands:
+                    if not self.running:
+                        break
+                    self.input_queue.put(cmd)
+                    time.sleep(1)  # Интервал 1 секунда
+            except FileNotFoundError:
+                print(f"Файл {self.script_file} не найден")
+                self.running = False
+            except Exception as e:
+                print(f"Ошибка чтения файла: {e}")
+                self.running = False
+            self.running = False
+        else:
+            print("Команды: up, down, left, right, addmon, attack, sayall, quit")
+            while self.running:
+                try:
+                    line = input("> ")
+                    if line == "quit":
+                        self.running = False
+                        break
+                    if line:
+                        self.input_queue.put(line)
+                except EOFError:
                     break
-                if line:
-                    self.input_queue.put(line)
-            except EOFError:
-                break
 
     async def run(self):
         """Основной цикл работы клиента."""
