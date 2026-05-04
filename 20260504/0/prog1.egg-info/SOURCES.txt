@@ -1,0 +1,13 @@
+MANIFEST.in
+README.md
+dodo.py
+pyproject.toml
+po/ru_RU.UTF-8/LC_MESSAGES/prog1.po
+prog1/__init__.py
+prog1/__main__.py
+prog1/prog1.py
+prog1.egg-info/PKG-INFO
+prog1.egg-info/SOURCES.txt
+prog1.egg-info/dependency_links.txt
+prog1.egg-info/top_level.txt
+prog1/ru_RU.UTF-8/LC_MESSAGES/prog1.mo
