@@ -10,11 +10,16 @@ import cowsay
 
 from mood.common import JGSBAT_ASCII_ART
 
+DIRECTIONS = ("up", "down", "left", "right")
+WEAPONS_NAMES = ("sword", "spear", "axe")
+
+class InvalidCommand(Exception):
+    """Команда не распознана / параметры неправильные."""
 
 class MudClient:
     """Асинхронный клиент для подключения к MUD серверу."""
 
-    def __init__(self, host, port, username):
+    def __init__(self, host, port, username, script_file=None):
         """Инициализация клиента.
 
         Args:
@@ -41,6 +46,44 @@ class MudClient:
         except Exception:
             # Если ничего не работает, создаём простой cow
             self.jgsbat = None
+    def parse_command(self, user_input):
+        """Преобразовать пользовательский ввод в строку протокольной команды."""
+        if user_input is None or not user_input.strip():
+            raise InvalidCommand("empty input")
+        parts = user_input.strip().split()
+        cmd, args = parts[0], parts[1:]
+
+        # "move <direction>"  ->  "<direction>"
+        if cmd == "move":
+            if len(args) != 1:
+                raise InvalidCommand("move requires direction")
+            if args[0] not in DIRECTIONS:
+                raise InvalidCommand(f"unknown direction '{args[0]}'")
+            return args[0]
+
+        # "attack <monster> [<weapon>]"  ->  "attack <monster> with <weapon>"
+        if cmd == "attack":
+            if len(args) == 1:
+                return f"attack {args[0]} with sword"
+            if len(args) == 2:
+                if args[1] not in WEAPONS_NAMES:
+                    raise InvalidCommand(f"unknown weapon '{args[1]}'")
+                return f"attack {args[0]} with {args[1]}"
+            raise InvalidCommand("attack requires monster and optional weapon")
+
+        # остальные команды — как есть
+        return user_input.strip()
+
+    async def send_command(self, user_input):
+        """Распарсить ввод и отправить серверу. False — если ввод невалиден."""
+        try:
+            protocol_cmd = self.parse_command(user_input)
+        except InvalidCommand as e:
+            print(f"Ошибка команды: {e}")
+            return False
+        self.writer.write((protocol_cmd + "\n").encode())
+        await self.writer.drain()
+        return True
 
     def render_encounter(self, name, hello):
         """Отрисовка встречи с монстром с помощью cowsay.
