@@ -1,0 +1,6 @@
+addmon 5 5 dragon "Greetings!" 50
+movemonsters off
+# Теперь монстры не двигаются 30 секунд
+attack dragon with sword
+movemonsters on
+quit
