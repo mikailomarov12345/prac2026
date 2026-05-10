@@ -34,7 +34,7 @@ class MudServer:
         self.positions = {}
         self.wandering_task = None
         self.monsters_move_enabled = True
-        self.client_locales = {}  # username -> locale
+        self.client_locales = {}  # Username -> locale
         # Настройка переводов
         locale_dir = Path(__file__).parent / "locales"
         self.translations = {
