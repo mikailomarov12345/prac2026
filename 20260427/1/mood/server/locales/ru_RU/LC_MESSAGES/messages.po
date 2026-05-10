@@ -1,0 +1,39 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: MOOD\n"
+"Language: ru\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+
+msgid "Set up locale: {}"
+msgstr "Установлена локаль: {}"
+
+msgid "Entered the MUD"
+msgstr "вошёл в MUD"
+
+msgid "Left the MUD"
+msgstr "покинул MUD"
+
+msgid "placed {} at ({},{}) (HP:{})"
+msgstr "разместил {} в ({},{}) (Здоровье:{})"
+
+msgid "replaced {} with {} at ({},{}) (HP:{})"
+msgstr "заменил {} на {} в ({},{}) (Здоровье:{})"
+
+msgid "killed {} with {}"
+msgstr "убил {} с помощью {}"
+
+msgid "attacked {} with {}, {} HP left"
+msgstr "атаковал {} с помощью {}, осталось {} здоровья"
+
+msgid "Moving monsters: {}"
+msgstr "Перемещение монстров: {}"
+
+msgid "moved one cell {}"
+msgstr "переместился на одну клетку {}"
+
+msgid "point"
+msgid_plural "points"
+msgstr[0] "очко"
+msgstr[1] "очка"
+msgstr[2] "очков"
