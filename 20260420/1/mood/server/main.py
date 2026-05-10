@@ -34,7 +34,7 @@ class MudServer:
         self.positions = {}
         self.wandering_task = None
         self.monsters_move_enabled = True
-        self.client_locales = {}  # Username -> locale
+        self.client_locales = {}  # username -> locale
         # Настройка переводов
         locale_dir = Path(__file__).parent / "locales"
         self.translations = {
@@ -64,22 +64,36 @@ class MudServer:
         else:
             await self.send_to_user(username, f"ERROR Unknown locale: {locale_name}")
 
-    async def broadcast(self, message_id, exclude=None, **kwargs):
+    async def broadcast(self, message_id, exclude=None, *args, **kwargs):
         """Отправить локализованное сообщение всем клиентам."""
-        for username, writer in self.writers.items():
-            if username != exclude:
+        # автор использует username= как маркер отправителя -> исключим его из рассылки
+        if exclude is None and 'username' in kwargs:
+            exclude = kwargs.pop('username')
+        for recipient, writer in self.writers.items():
+            if recipient == exclude:
+                continue
+            try:
                 try:
-                    msg = self.get_translated_message(username, message_id, **kwargs)
-                    writer.write((msg + "\n").encode())
-                    await writer.drain()
-                except (ConnectionError, BrokenPipeError):
-                    pass
+                    if args:
+                        msg = message_id.format(*args)
+                    else:
+                        msg = self.get_translated_message(recipient, message_id, **kwargs)
+                except (IndexError, KeyError, TypeError):
+                    # формат-строка с {}/{name} не сошлась с kwargs — отправим как есть
+                    msg = message_id
+                writer.write((msg + "\n").encode())
+                await writer.drain()
+            except (ConnectionError, BrokenPipeError):
+                pass
 
-    async def send_to_user(self, username, message_id, **kwargs):
-        """Отправить локализованное сообщение конкретному пользователю."""
+    async def send_to_user(self, username, message_id, *args, **kwargs):
+        """Отправить сообщение конкретному пользователю."""
         if username in self.writers:
             try:
-                msg = self.get_translated_message(username, message_id, **kwargs)
+                if args:
+                    msg = message_id.format(*args)
+                else:
+                    msg = self.get_translated_message(username, message_id, **kwargs)
                 self.writers[username].write((msg + "\n").encode())
                 await self.writers[username].drain()
             except (ConnectionError, BrokenPipeError):
@@ -321,3 +335,17 @@ class MudServer:
             await self.send_to_user(username, "Moving monsters: off")
         else:
             await self.send_to_user(username, "ERROR Invalid state. Use 'on' or 'off'")
+
+async def _serve(host, port):
+    server = MudServer()
+    srv = await asyncio.start_server(server.handle_client, host, port)
+    async with srv:
+        await srv.serve_forever()
+
+
+def run_server(host="localhost", port=1337):
+    """Точка входа для multiprocessing.Process(target=run_server, args=(host, port))."""
+    try:
+        asyncio.run(_serve(host, port))
+    except KeyboardInterrupt:
+        pass
