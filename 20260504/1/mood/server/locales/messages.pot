@@ -1,0 +1,38 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: MOOD\n"
+"Language: en\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "Set up locale: {}"
+msgstr ""
+
+msgid "Entered the MUD"
+msgstr ""
+
+msgid "Left the MUD"
+msgstr ""
+
+msgid "placed {} at ({},{}) (HP:{})"
+msgstr ""
+
+msgid "replaced {} with {} at ({},{}) (HP:{})"
+msgstr ""
+
+msgid "killed {} with {}"
+msgstr ""
+
+msgid "attacked {} with {}, {} HP left"
+msgstr ""
+
+msgid "Moving monsters: {}"
+msgstr ""
+
+msgid "moved one cell {}"
+msgstr ""
+
+msgid "point"
+msgid_plural "points"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
