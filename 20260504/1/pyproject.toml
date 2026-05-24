@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mood"
+version = "1.0.0"
+requires-python = ">=3.9"
+dependencies = [
+    "cowsay>=6.0",
+    "babel",
+]
+
+[project.scripts]
+mood-client = "mood.client.__main__:main"
+mood-server = "mood.server.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.setuptools.package-data]
+"mood.server" = [
+    "locales/ru_RU/LC_MESSAGES/messages.mo",
+    "locales/ru_RU/LC_MESSAGES/messages.po",
+    "locales/messages.pot",
+]
+"mood" = ["*.cow"]

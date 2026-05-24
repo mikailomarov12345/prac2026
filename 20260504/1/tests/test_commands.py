@@ -98,13 +98,13 @@ class ServerCommandsTests(unittest.TestCase):
         # sword = 10 урона, у дракона 50 HP -> остаётся 40
         self.assertEqual(_readline(self.f), "ATTACK HIT dragon 10 40")
 
-	def test_locale_ru_response(self):
-    	"""После locale ru_RU сервер отвечает по-русски."""
-    	self.sock.sendall(b"locale ru_RU\n")
-    	line = _readline(self.f)
-    	# сервер шлёт переведённое "Set up locale: ru_RU"
-    	self.assertIn("ru_RU", line)
-    	self.assertNotEqual(line, "Set up locale: ru_RU")
+    def test_locale_ru_response(self):
+        """После locale ru_RU сервер отвечает по-русски."""
+        self.sock.sendall(b"locale ru_RU\n")
+        line = _readline(self.f)
+        # сервер шлёт переведённое "Set up locale: ru_RU"
+        self.assertIn("ru_RU", line)
+        self.assertNotEqual(line, "Set up locale: ru_RU")
  
 if __name__ == "__main__":
     unittest.main()

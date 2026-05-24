@@ -316,7 +316,7 @@ class MudServer:
                     self.game.monsters[new_x][new_y] = self.game.monsters[x][y]
                     self.game.monsters[x][y] = None
 
-                    await self.broadcast("moved one cell {}", name=name, direction=direction)
+                    await self.broadcast("moved one cell {direction}", direction=direction)
 
                     for player, (px, py) in self.positions.items():
                         if px == new_x and py == new_y:

@@ -1,5 +1,6 @@
 """The main logic of the MUD game client."""
 
+import cmd
 import time
 import asyncio
 import threading
@@ -11,10 +12,56 @@ import cowsay
 from mood.common import JGSBAT_ASCII_ART
 
 
+class MudCmd(cmd.Cmd):
+    prompt = "> "
+
+    def __init__(self, input_queue, client):
+        super().__init__()
+        self.input_queue = input_queue
+        self.client = client
+
+    def do_up(self, _): self.input_queue.put("up")
+    def do_down(self, _): self.input_queue.put("down")
+    def do_left(self, _): self.input_queue.put("left")
+    def do_right(self, _): self.input_queue.put("right")
+
+    def do_addmon(self, arg):
+        self.input_queue.put(f"addmon {arg}")
+
+    def do_attack(self, arg):
+        if not arg.strip():
+            print("Invalid arguments. Usage: attack <name> [with <weapon>]")
+            return
+        self.input_queue.put(f"attack {arg}")
+
+    def complete_attack(self, text, line, begidx, endidx):
+        parts = line.split()
+        if "with" in parts:
+            return [w for w in ["sword", "spear", "axe"] if w.startswith(text)]
+        if len(parts) >= 2:
+            return ["with"] if "with".startswith(text) else []
+        return [n for n in cowsay.list_cows() + ["jgsbat"] if n.startswith(text)]
+
+    def do_sayall(self, arg): self.input_queue.put(f"sayall {arg}")
+    def do_movemonsters(self, arg): self.input_queue.put(f"movemonsters {arg}")
+    def do_locale(self, arg): self.input_queue.put(f"locale {arg}")
+
+    def do_quit(self, _):
+        self.client.running = False
+        return True
+
+    def do_EOF(self, _):
+        self.client.running = False
+        return True
+
+    def default(self, line):
+        print("Invalid command")
+
+
 class MudClient:
     """Асинхронный клиент для подключения к MUD серверу."""
 
-    def __init__(self, host, port, username):
+    def __init__(self, host, port, username, script_file=None):
         """Инициализация клиента.
 
         Args:
@@ -34,9 +81,6 @@ class MudClient:
         # Загружаем кастомного монстра (для новой версии cowsay)
         try:
             # Пробуем новый API
-            self.jgsbat = cowsay.read_dot_cow(StringIO(JGSBAT_ASCII_ART))
-        except AttributeError:
-            # Старый API
             self.jgsbat = cowsay.read_dot_cow(StringIO(JGSBAT_ASCII_ART))
         except Exception:
             # Если ничего не работает, создаём простой cow
@@ -106,10 +150,10 @@ class MudClient:
             try:
                 with open(self.script_file, 'r') as f:
                     commands = [line.strip() for line in f if line.strip()]
-                for cmd in commands:
+                for line in commands:
                     if not self.running:
                         break
-                    self.input_queue.put(cmd)
+                    self.input_queue.put(line)
                     time.sleep(1)  # Интервал 1 секунда
             except FileNotFoundError:
                 print(f"Файл {self.script_file} не найден")
@@ -119,17 +163,7 @@ class MudClient:
                 self.running = False
             self.running = False
         else:
-            print("Команды: up, down, left, right, addmon, attack, sayall, movemonsters, locale, quit")
-            while self.running:
-                try:
-                    line = input("> ")
-                    if line == "quit":
-                        self.running = False
-                        break
-                    if line:
-                        self.input_queue.put(line)
-                except EOFError:
-                    break
+            MudCmd(self.input_queue, self).cmdloop()
 
     async def run(self):
         """Основной цикл работы клиента."""
@@ -146,8 +180,8 @@ class MudClient:
         # Отправка команд
         while self.running:
             try:
-                cmd = self.input_queue.get_nowait()
-                self.writer.write((cmd + "\n").encode())
+                line = self.input_queue.get_nowait()
+                self.writer.write((line + "\n").encode())
                 await self.writer.drain()
             except queue.Empty:
                 await asyncio.sleep(0.05)
