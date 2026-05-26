@@ -12,6 +12,7 @@ async def run_server(port):
 
     Args:
         port: Номер порта
+
     """
     server = MudServer()
 

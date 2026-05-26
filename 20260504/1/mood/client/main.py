@@ -71,6 +71,7 @@ class MudClient:
             port: Server port
             username: Player username
             script_file: Path to .mood script file, or None
+
         """
         self.host = host
         self.port = port
@@ -92,6 +93,7 @@ class MudClient:
         Args:
             name: Monster name
             hello: Monster greeting
+
         """
         try:
             if name == "jgsbat" and self.jgsbat:
@@ -163,7 +165,7 @@ class MudClient:
             MudCmd(self.input_queue, self).cmdloop()
 
     async def run(self):
-        """Main client loop."""
+        """Run the main client loop."""
         if not await self.connect():
             return
 
