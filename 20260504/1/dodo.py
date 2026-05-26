@@ -44,7 +44,7 @@ def task_pot():
     """Извлечь сообщения для перевода в messages.pot."""
     sources = sorted(glob.glob("mood/**/*.py", recursive=True))
     return {
-        "actions": [f"pybabel extract -F babel.cfg -o {POT_FILE} mood"],
+        "actions": [f"pybabel extract -F babel.cfg -o {POT_FILE} ."],
         "targets": [POT_FILE],
         "file_dep": sources,
         "clean": [clean_targets],

@@ -13,6 +13,8 @@ from mood.common import JGSBAT_ASCII_ART
 
 
 class MudCmd(cmd.Cmd):
+    """MUD game client with command line support."""
+
     prompt = "> "
 
     def __init__(self, input_queue, client):
@@ -59,15 +61,16 @@ class MudCmd(cmd.Cmd):
 
 
 class MudClient:
-    """Асинхронный клиент для подключения к MUD серверу."""
+    """Async client for connecting to MUD server."""
 
     def __init__(self, host, port, username, script_file=None):
-        """Инициализация клиента.
+        """Initialize the client.
 
         Args:
-            host: Адрес сервера
-            port: Порт сервера
-            username: Имя пользователя
+            host: Server address
+            port: Server port
+            username: Player username
+            script_file: Path to .mood script file, or None
         """
         self.host = host
         self.port = port
@@ -78,20 +81,17 @@ class MudClient:
         self.running = True
         self.input_queue = queue.Queue()
 
-        # Загружаем кастомного монстра (для новой версии cowsay)
         try:
-            # Пробуем новый API
             self.jgsbat = cowsay.read_dot_cow(StringIO(JGSBAT_ASCII_ART))
         except Exception:
-            # Если ничего не работает, создаём простой cow
             self.jgsbat = None
 
     def render_encounter(self, name, hello):
-        """Отрисовка встречи с монстром с помощью cowsay.
+        """Render monster encounter using cowsay.
 
         Args:
-            name: Имя монстра
-            hello: Приветствие
+            name: Monster name
+            hello: Monster greeting
         """
         try:
             if name == "jgsbat" and self.jgsbat:
@@ -99,12 +99,11 @@ class MudClient:
             else:
                 print(cowsay.cowsay(hello, cow=name))
         except Exception as e:
-            # Fallback - просто печатаем текст
-            print(f"Встреча с {name}: {hello}")
-            print(f"Ошибка отрисовки: {e}")
+            print(f"Encounter with {name}: {hello}")
+            print(f"Render error: {e}")
 
     async def connect(self):
-        """Подключение к серверу и регистрация имени."""
+        """Connect to server and register username."""
         self.reader, self.writer = await asyncio.open_connection(
             self.host, self.port
         )
@@ -113,13 +112,13 @@ class MudClient:
 
         response = await self.reader.readline()
         if response.decode().strip() == "ERROR":
-            print("Имя уже используется")
+            print("Username already taken")
             return False
-        print("Подключено!")
+        print("Connected!")
         return True
 
     async def receive_messages(self):
-        """Асинхронный приём сообщений от сервера."""
+        """Async receive messages from server."""
         while self.running:
             try:
                 data = await self.reader.readline()
@@ -127,9 +126,7 @@ class MudClient:
                     break
                 msg = data.decode().strip()
 
-                # Обработка встречи с монстром
                 if msg.startswith("ENCOUNTER"):
-                    # Формат: ENCOUNTER имя приветствие
                     parts = msg.split(maxsplit=2)
                     if len(parts) == 3:
                         _, name, hello = parts
@@ -141,11 +138,11 @@ class MudClient:
             except (asyncio.CancelledError, ConnectionError):
                 break
             except Exception as e:
-                print(f"Ошибка приёма: {e}")
+                print(f"Receive error: {e}")
                 break
 
     def input_loop(self):
-        """Цикл чтения ввода пользователя в отдельном потоке."""
+        """Read user input in a separate thread."""
         if self.script_file:
             try:
                 with open(self.script_file, 'r') as f:
@@ -154,30 +151,27 @@ class MudClient:
                     if not self.running:
                         break
                     self.input_queue.put(line)
-                    time.sleep(1)  # Интервал 1 секунда
+                    time.sleep(1)
             except FileNotFoundError:
-                print(f"Файл {self.script_file} не найден")
+                print(f"File {self.script_file} not found")
                 self.running = False
             except Exception as e:
-                print(f"Ошибка чтения файла: {e}")
+                print(f"File read error: {e}")
                 self.running = False
             self.running = False
         else:
             MudCmd(self.input_queue, self).cmdloop()
 
     async def run(self):
-        """Основной цикл работы клиента."""
+        """Main client loop."""
         if not await self.connect():
             return
 
-        # Запускаем поток ввода
         input_thread = threading.Thread(target=self.input_loop, daemon=True)
         input_thread.start()
 
-        # Запускаем приём сообщений
         receive_task = asyncio.create_task(self.receive_messages())
 
-        # Отправка команд
         while self.running:
             try:
                 line = self.input_queue.get_nowait()
@@ -186,7 +180,7 @@ class MudClient:
             except queue.Empty:
                 await asyncio.sleep(0.05)
             except Exception as e:
-                print(f"Ошибка: {e}")
+                print(f"Send error: {e}")
                 break
 
         receive_task.cancel()
