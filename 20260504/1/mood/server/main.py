@@ -165,7 +165,7 @@ class MudServer:
 
     async def handle_sayall(self, username, message):
         """Handle sayall command - send message to all."""
-        await self.broadcast("CHAT {}: {}", username=username, message=message)
+        await self.broadcast(f"CHAT {username}: {message}")
 
     async def handle_client(self, reader, writer):
         """Handle client connection."""

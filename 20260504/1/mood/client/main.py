@@ -96,10 +96,10 @@ class MudClient:
 
         """
         try:
-            if name == "jgsbat" and self.jgsbat:
-                print(cowsay.cowsay(hello, cowfile=self.jgsbat))
+            if name == "jgsbat":
+                print(f"Encounter with {name}: {hello}")
             else:
-                print(cowsay.cowsay(hello, cow=name))
+                print(cowsay.get_output_string(name, hello))
         except Exception as e:
             print(f"Encounter with {name}: {hello}")
             print(f"Render error: {e}")
@@ -151,6 +151,9 @@ class MudClient:
                     commands = [line.strip() for line in f if line.strip()]
                 for line in commands:
                     if not self.running:
+                        break
+                    if line == "quit":
+                        self.running = False
                         break
                     self.input_queue.put(line)
                     time.sleep(1)
