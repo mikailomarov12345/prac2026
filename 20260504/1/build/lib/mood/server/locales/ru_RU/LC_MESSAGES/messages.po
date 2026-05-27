@@ -1,0 +1,71 @@
+# Russian (Russia) translations for PROJECT.
+# Copyright (C) 2026 ORGANIZATION
+# This file is distributed under the same license as the PROJECT project.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PROJECT VERSION\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2026-05-26 13:54+0300\n"
+"PO-Revision-Date: 2026-05-26 13:54+0300\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: ru_RU\n"
+"Language-Team: ru_RU <LL@li.org>\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: mood/server/main.py:58
+msgid "point"
+msgid_plural "points"
+msgstr[0] "очко"
+msgstr[1] "очка"
+msgstr[2] "очков"
+
+#: mood/server/main.py:67
+#, python-brace-format
+msgid "Set up locale: {locale}"
+msgstr "Установлена локаль: {locale}"
+
+#: mood/server/main.py:132
+#, python-brace-format
+msgid "replaced {old_name} with {name} at ({x},{y}) (HP:{hp})"
+msgstr "{old_name} заменён на {name} в ({x},{y}) (HP:{hp})"
+
+#: mood/server/main.py:137
+#, python-brace-format
+msgid "placed {name} at ({x},{y}) (HP:{hp})"
+msgstr "{name} размещён в ({x},{y}) (HP:{hp})"
+
+#: mood/server/main.py:157
+#, python-brace-format
+msgid "killed {name} with {weapon}"
+msgstr "{name} убит с помощью {weapon}"
+
+#: mood/server/main.py:162
+#, python-brace-format
+msgid "attacked {name} with {weapon}, {hp} HP left"
+msgstr "{name} атакован с помощью {weapon}, осталось {hp} HP"
+
+#: mood/server/main.py:200
+msgid "entered the MUD"
+msgstr "вошёл в игру"
+
+#: mood/server/main.py:284
+msgid "left the MUD"
+msgstr "покинул игру"
+
+#: mood/server/main.py:322
+#, python-brace-format
+msgid "moved one cell {direction}"
+msgstr "переместился на одну клетку: {direction}"
+
+#: mood/server/main.py:333
+msgid "Moving monsters: on"
+msgstr "Монстры двигаются: вкл"
+
+#: mood/server/main.py:338
+msgid "Moving monsters: off"
+msgstr "Монстры двигаются: выкл"
