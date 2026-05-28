@@ -1,2 +1,0 @@
-cowsay>=6.0
-babel

@@ -1,3 +1,0 @@
-[console_scripts]
-mood-client = mood.client.__main__:main
-mood-server = mood.server.__main__:main

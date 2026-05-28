@@ -21,6 +21,11 @@ class MudCmd(cmd.Cmd):
         super().__init__()
         self.input_queue = input_queue
         self.client = client
+        try:
+            import readline
+            readline.parse_and_bind("tab: complete")
+        except ImportError:
+            pass
 
     def do_up(self, _): self.input_queue.put("up")
     def do_down(self, _): self.input_queue.put("down")
